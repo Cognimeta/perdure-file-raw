@@ -1,0 +1,12 @@
+name:           perdure-file-raw
+version:        0.1
+cabal-version:  >=1.2
+build-type:     Simple
+author:         Patrick
+
+library
+  hs-source-dirs:  src
+  build-depends:   base >= 4,
+    perdure-file = 0.0.1
+  ghc-options:     -Wall
+
