@@ -13,7 +13,7 @@ or implied. See the License for the specific language governing permissions and 
 
 {-# LANGUAGE TemplateHaskell, TypeFamilies, Rank2Types, GADTs, TupleSections, DeriveDataTypeable, GeneralizedNewtypeDeriving, ScopedTypeVariables, FlexibleContexts #-}
 
-module Database.Perdure.LocalStoreFile (
+module Database.Perdure.RawDevice (
     RawStoreFile(..),
     storeFileWriteWords,
     storeFileReadWords,
@@ -46,12 +46,13 @@ import Cgm.Control.Concurrent.Await
 import Cgm.System.Mem.Alloc
 import Database.Perdure.Validator
 import System.IO
---import System.Posix.Files
---import System.Posix.IO
+import System.Posix.Files
+import System.Posix.IO
 import System.Posix.Types
 import Data.Bits
 import Control.Monad.Error hiding (sequence_)
 import Database.Perdure.StoreFile(SyncableStoreFile(..))
+import Database.Perdure.LocalStoreFile
 --import System.Posix.Fsync -- not needed with raw devices
 
 
