@@ -34,6 +34,7 @@ import Data.Typeable
 import qualified Data.ByteString as B
 import Control.Concurrent
 import Data.Word
+import Data.Bool
 import qualified Data.Map as Map
 import Cgm.Data.Super
 import Cgm.Data.Len
@@ -53,21 +54,22 @@ import Data.Bits
 import Control.Monad.Error hiding (sequence_)
 import Database.Perdure.StoreFile(SyncableStoreFile(..))
 import Database.Perdure.LocalStoreFile
+import Control.Monad.Trans.Except
 --import System.Posix.Fsync -- not needed with raw devices
 
 
 -- | Opens the specified raw device as a LocalStoreFile, runs the provided function and closes the device.
 -- Do not make concurrent calls on the same device, place concurrency in the passed function.
-withRawDeviceStoreFile :: FilePath -> (LocalStoreFile -> IO a) -> ErrorT String IO a
+withRawDeviceStoreFile :: FilePath -> (LocalStoreFile -> IO a) -> ExceptT String IO a
 withRawDeviceStoreFile path user =
-  ErrorT $ bracket (openFd path ReadWrite Nothing $ defaultFileFlags {exclusive = True, append = True}) closeFd $ 
-  \fd -> runErrorT $
+  ExceptT $ bracket (openFd path ReadWrite Nothing $ defaultFileFlags {exclusive = True, append = True}) closeFd $
+  \fd -> runExceptT $
          do fs <- lift $ getFdStatus fd
             bool (throwError "Not a raw device") (lift $ withRawFile (RawDevice fd fs 9) user) $ isCharacterDevice fs
 
 -- | Like nesting multiple calls to 'withRawDeviceStoreFile'.
-withRawDeviceStoreFiles :: [FilePath] -> ([LocalStoreFile] -> IO a) -> ErrorT String IO a
-withRawDeviceStoreFiles ps user = foldr (\p u fs ->  (>>= ErrorT . pure) $ withRawDeviceStoreFile p $ \f -> runErrorT $ u $ fs `mappend` [f]) (lift . user) ps []
+withRawDeviceStoreFiles :: [FilePath] -> ([LocalStoreFile] -> IO a) -> ExceptT String IO a
+withRawDeviceStoreFiles ps user = foldr (\p u fs ->  (>>= ExceptT . pure) $ withRawDeviceStoreFile p $ \f -> runExceptT $ u $ fs `mappend` [f]) (lift . user) ps []
 
 toFileOffset :: Integral n => Len Word8 n -> FileOffset
 toFileOffset = fromIntegral . getLen
@@ -81,12 +83,12 @@ fdSeekLen fd seek = () <$ fdSeek fd AbsoluteSeek (toFileOffset seek)
 -- TODO: consider adding support for a 'STPrimArray RealWorld Pinned Block', and a matching address type, that would enfoce the above requirements
 -- However we would have to cast/view it as an array of Word8 later on.
 -- | Array's size and start must be aligned on the block size, and the ByteAddr too.
-fdReadArray :: Fd -> ByteAddr -> ArrayRange (STPrimArray RealWorld Pinned Word8) -> ErrorT String IO ()
-fdReadArray fd start a = ErrorT $ fmap (boolEither "" () . (==) (toByteCount $ arrayLen a)) $ 
+fdReadArray :: Fd -> ByteAddr -> ArrayRange (STPrimArray RealWorld Pinned Word8) -> ExceptT String IO ()
+fdReadArray fd start a = ExceptT $ fmap (boolEither "" () . (==) (toByteCount $ arrayLen a)) $
                          fdSeekLen fd start >> withArrayPtr (\ptr len -> fdReadBuf fd ptr $ toByteCount len) a
 
-fdWriteArray :: Fd -> ByteAddr -> ArrayRange (STPrimArray RealWorld Pinned Word8) -> ErrorT String IO ()
-fdWriteArray fd start a = ErrorT $ fmap (boolEither "" () . (==) (toByteCount $ arrayLen a)) $ 
+fdWriteArray :: Fd -> ByteAddr -> ArrayRange (STPrimArray RealWorld Pinned Word8) -> ExceptT String IO ()
+fdWriteArray fd start a = ExceptT $ fmap (boolEither "" () . (==) (toByteCount $ arrayLen a)) $
                           fdSeekLen fd start >> withArrayPtr (\ptr len -> fdWriteBuf fd ptr $ toByteCount len) a
 
 -- A bit of info on raw devices that i did not find easily elsewhere: http://www.win.tue.nl/~aeb/linux/lk/lk-11.html#ss11.4
